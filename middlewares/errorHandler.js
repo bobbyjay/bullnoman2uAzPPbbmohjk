@@ -1,0 +1,12 @@
+const logger = require('../utils/logger');
+
+module.exports = function (err, req, res, next) {
+  logger.error(err.stack || err.message || err);
+  const status = err.status || 500;
+  const payload = {
+    success: false,
+    message: err.message || 'Server Error'
+  };
+  if (process.env.NODE_ENV === 'development') payload.stack = err.stack;
+  res.status(status).json(payload);
+};
