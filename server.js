@@ -43,7 +43,7 @@ try {
 // ✅ SECURITY & MIDDLEWARES
 // =======================
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow Cloudinary streaming
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
@@ -53,7 +53,7 @@ app.use(morgan('combined'));
 app.use(rateLimit);
 
 // =======================
-// ✅ ROUTES
+// ✅ API ROUTES
 // =======================
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/usersRoutes'));
@@ -68,7 +68,17 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/status', require('./routes/healthRoutes'));
 
 // =======================
-// ✅ 404 HANDLER
+// ⭐ ROOT ROUTE (Fix for Render health check)
+// =======================
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'ClutchDen API is running 🚀',
+  });
+});
+
+// =======================
+// ❌ 404 HANDLER
 // =======================
 app.use((req, res) => {
   res.status(404).json({
