@@ -1,35 +1,51 @@
-const nodemailer = require('nodemailer');
+const axios = require("axios");
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,              // smtp.zoho.com
-  port: Number(process.env.SMTP_PORT),      // 587
-  secure: false,                            // MUST be false for Zoho on port 587
-  auth: {
-    user: process.env.SMTP_USER,            // your Zoho email
-    pass: process.env.SMTP_PASS,            // Zoho App Password
-  },
-  requireTLS: true,                         // force STARTTLS
-  tls: {
-    minVersion: "TLSv1.2",
-    rejectUnauthorized: false               // required for Render (Zoho cert mismatch)
+async function getZohoAccessToken() {
+  try {
+    const response = await axios.post(
+      "https://accounts.zoho.com/oauth/v2/token",
+      null,
+      {
+        params: {
+          refresh_token: process.env.ZOHO_REFRESH_TOKEN,
+          client_id: process.env.ZOHO_CLIENT_ID,
+          client_secret: process.env.ZOHO_CLIENT_SECRET,
+          grant_type: "refresh_token"
+        }
+      }
+    );
+
+    return response.data.access_token;
+  } catch (err) {
+    console.error("❌ Failed to refresh Zoho access token:", err.response?.data || err);
+    throw new Error("Could not refresh Zoho access token");
   }
-});
+}
 
-/**
- * Sends an email using Zoho SMTP
- */
 exports.sendEmail = async ({ to, subject, html }) => {
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to,
-      subject,
-      html
-    });
+    const accessToken = await getZohoAccessToken();
 
-    console.log(`📧 Email sent to ${to}`);
+    const response = await axios.post(
+      "https://mail.zoho.com/api/accounts/{accountId}/messages", 
+      {
+        fromAddress: process.env.EMAIL_FROM,
+        toAddress: to,
+        subject,
+        content: html,
+        mailFormat: "html"
+      },
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+        },
+      }
+    );
+
+    console.log("📧 Email sent:", response.data);
+    return response.data;
   } catch (err) {
-    console.error("❌ Email send error:", err);
+    console.error("❌ Email send error:", err.response?.data || err);
     throw err;
   }
 };
