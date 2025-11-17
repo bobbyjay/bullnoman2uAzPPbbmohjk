@@ -1,13 +1,18 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === "true",
+  host: process.env.SMTP_HOST,              // smtp.zoho.com
+  port: Number(process.env.SMTP_PORT),      // 587
+  secure: false,                            // MUST be false for Zoho on port 587
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.SMTP_USER,            // your Zoho email
+    pass: process.env.SMTP_PASS,            // Zoho App Password
   },
+  requireTLS: true,                         // force STARTTLS
+  tls: {
+    minVersion: "TLSv1.2",
+    rejectUnauthorized: false               // required for Render (Zoho cert mismatch)
+  }
 });
 
 /**
@@ -19,7 +24,7 @@ exports.sendEmail = async ({ to, subject, html }) => {
       from: process.env.EMAIL_FROM,
       to,
       subject,
-      html,
+      html
     });
 
     console.log(`📧 Email sent to ${to}`);
