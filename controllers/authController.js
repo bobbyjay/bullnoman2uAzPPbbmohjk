@@ -2,43 +2,78 @@ const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const response = require('../utils/responseHandler');
 const notificationService = require('../services/notificationService');
-const nodemailer = require('nodemailer');
+const axios = require('axios');
+
 
 // ==========================
-// ZOHO SMTP EMAIL SENDER
+// GET ZOHO ACCESS TOKEN USING REFRESH TOKEN
 // ==========================
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,    
-  port: Number(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+async function getZohoAccessToken() {
+  try {
+    const res = await axios.post(
+      "https://accounts.zoho.com/oauth/v2/token",
+      null,
+      {
+        params: {
+          refresh_token: process.env.ZOHO_REFRESH_TOKEN,
+          client_id: process.env.ZOHO_CLIENT_ID,
+          client_secret: process.env.ZOHO_CLIENT_SECRET,
+          grant_type: "refresh_token",
+        }
+      }
+    );
 
-/**
- * Send verification email using Zoho SMTP
- */
-async function sendVerificationEmail(user, code) {
-  const mailOptions = {
-    from: process.env.EMAIL_FROM,
-    to: user.email,
-    subject: "Verify your ClutchDen account",
-    html: `
-      <div style="font-family:Arial,sans-serif;">
-        <h2>Welcome to ClutchDen, ${user.username}!</h2>
-        <p>Please verify your email using the code below. This code expires in <b>2 minutes</b>.</p>
-        <h1 style="letter-spacing:5px;">${code}</h1>
-        <p>If you did not request this registration, ignore this email.</p>
-      </div>
-    `,
-    text: `Your verification code is: ${code}`,
-  };
-
-  await transporter.sendMail(mailOptions);
-  console.log(`📧 Sent Zoho verification code to ${user.email}`);
+    return res.data.access_token;
+  } catch (err) {
+    console.error("❌ Zoho Token Error:", err.response?.data || err);
+    throw new Error("Failed to get Zoho access token.");
+  }
 }
+
+
+// ==========================
+// SEND EMAIL USING ZOHO MAIL API
+// ==========================
+async function sendVerificationEmail(user, code) {
+  try {
+    const accessToken = await getZohoAccessToken();
+
+    const payload = {
+      fromAddress: process.env.EMAIL_FROM,
+      toAddress: user.email,
+      subject: "Verify your ClutchDen account",
+      mailFormat: "html",
+      content: `
+        <div style="font-family:Arial,sans-serif;">
+          <h2>Welcome to ClutchDen, ${user.username}!</h2>
+          <p>Please verify your email using the code below. This code expires in <b>2 minutes</b>.</p>
+          <h1 style="letter-spacing:5px;">${code}</h1>
+          <p>If you did not request this registration, ignore this email.</p>
+        </div>
+      `
+    };
+
+    // Replace YOUR_ACCOUNT_ID with your real Zoho Mail account ID
+    const accountId = process.env.ZOHO_ACCOUNT_ID;
+
+    const res = await axios.post(
+      `https://mail.zoho.com/api/accounts/${accountId}/messages`,
+      payload,
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`
+        }
+      }
+    );
+
+    console.log(`📧 Zoho email sent to ${user.email}`);
+  } catch (err) {
+    console.error("❌ Email send error:", err.response?.data || err);
+    throw err;
+  }
+}
+
+
 
 /**
  * @route POST /api/auth/register
@@ -74,7 +109,7 @@ exports.register = async (req, res) => {
       201
     );
 
-    // Optional auto-delete unverified accounts
+    // Auto-delete unverified users
     setTimeout(async () => {
       const stillUnverified = await User.findOne({ _id: user._id, isVerified: false });
       if (stillUnverified) {
@@ -88,6 +123,7 @@ exports.register = async (req, res) => {
     response.error(res, 'Error during registration', 500);
   }
 };
+
 
 /**
  * @route POST /api/auth/verify-email
@@ -132,6 +168,7 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
+
 /**
  * @route POST /api/auth/resend-code
  */
@@ -158,7 +195,6 @@ exports.resendCode = async (req, res) => {
       message: 'A new verification code has been sent to your email.',
     });
 
-    // Optional auto-delete
     setTimeout(async () => {
       const stillUnverified = await User.findOne({ _id: user._id, isVerified: false });
       if (stillUnverified) {
@@ -172,6 +208,7 @@ exports.resendCode = async (req, res) => {
     response.error(res, 'Unable to resend verification code', 500);
   }
 };
+
 
 /**
  * @route POST /api/auth/login
