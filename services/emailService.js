@@ -26,10 +26,13 @@ exports.sendEmail = async ({ to, subject, html }) => {
   try {
     const accessToken = await getZohoAccessToken();
 
+    const accountId = process.env.ZOHO_ACCOUNT_ID; // ⬅️ required
+
     const response = await axios.post(
-      "https://mail.zoho.com/api/accounts/{accountId}/messages", 
+      `https://mail.zoho.com/api/accounts/${accountId}/messages`,
       {
         fromAddress: process.env.EMAIL_FROM,
+        fromName: "ClutchDen",            // ⬅️ fixes "info" showing as sender
         toAddress: to,
         subject,
         content: html,
