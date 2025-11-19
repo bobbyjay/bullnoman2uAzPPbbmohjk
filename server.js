@@ -18,10 +18,11 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
-// ======================
-// TRUST PROXY (REQUIRED FOR RENDER)
-// ======================
-app.set("trust proxy", 1);
+// --------------------------------------------------
+// REQUIRED FIX FOR RENDER (BEFORE EVERYTHING)
+// --------------------------------------------------
+app.set("trust proxy", true); 
+// --------------------------------------------------
 
 // ======================
 // CONNECT DATABASE
