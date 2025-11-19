@@ -9,6 +9,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 
 const rateLimit = require('./middlewares/rateLimiter');
 const botBlocker = require('./middlewares/botBlocker');
+const ipFirewall = require('./middlewares/ipFirewall');
 
 const { connectDB } = require('./config/db');
 const { cloudinaryConfig } = require('./config/cloudinary');
@@ -16,6 +17,11 @@ const corsOptions = require('./config/corsOptions');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
+
+// ======================
+// TRUST PROXY (REQUIRED FOR RENDER)
+// ======================
+app.set("trust proxy", 1);
 
 // ======================
 // CONNECT DATABASE
@@ -43,31 +49,20 @@ try {
 // ======================
 // SECURITY MIDDLEWARES
 // ======================
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-  })
-);
-
-// ⭐ CORS MUST come BEFORE json parsing & BEFORE botBlocker
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 app.use(cors(corsOptions));
-
-// Required for preflight success on Render
-app.options("*", cors(corsOptions));
-
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(mongoSanitize());
 app.use(morgan("combined"));
 
-// ======================
-// BOT BLOCKER (safe placement)
-// ======================
-app.use(botBlocker);
+// Custom Firewalls
+app.use(ipFirewall);   // IP blocklist + suspicious IP tracking
+app.use(botBlocker);   // Bot, scraper, spam, and payload filter
 
-// ======================
-// RATE LIMITING
-// ======================
+// Rate limit (after bot detection)
 app.use(rateLimit);
 
 // ======================
@@ -85,15 +80,15 @@ app.use('/api/winners', require('./routes/winnerRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/status', require('./routes/healthRoutes'));
 
-// ROOT
+// ROOT CHECK
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
-    message: "ClutchDen API running 🚀",
+    message: "ClutchDen API running 🚀"
   });
 });
 
-// 404 HANDLER
+// 404
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -106,12 +101,9 @@ app.use(errorHandler);
 
 // START SERVER
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-// Graceful shutdown
-process.on("unhandledRejection", (err) => {
+process.on("unhandledRejection", err => {
   console.error("❌ Unhandled:", err.message);
   process.exit(1);
 });
