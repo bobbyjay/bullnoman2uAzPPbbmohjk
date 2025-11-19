@@ -1,19 +1,26 @@
-// builds cors options from env
-const origins = (process.env.CORS_ALLOWED_ORIGINS || '')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
+// config/corsOptions.js
+
+const allowedOrigins = [
+  "https://clutchden.com",
+  "https://www.clutchden.com",
+  "https://clutchden.onrender.com",
+  "http://localhost:3000",
+  "http://localhost:5173"
+];
 
 module.exports = {
   origin: function (origin, callback) {
-    // allow non-browser tools (no origin)
+    // Allow server-to-server or tools (no browser origin)
     if (!origin) return callback(null, true);
-    if (origins.length === 0) return callback(null, true);
-    if (origins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      console.warn("❌ BLOCKED CORS origin:", origin);
+      return callback(new Error("Not allowed by CORS"), false);
     }
-    return callback(null, true);
   },
-  credentials: true
+  credentials: true,
+  methods: "GET,POST,PUT,PATCH,DELETE",
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
