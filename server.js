@@ -1,32 +1,33 @@
-require('dotenv').config();
-require('express-async-errors');
+require("dotenv").config();
+require("express-async-errors");
 
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const morgan = require('morgan');
-const mongoSanitize = require('express-mongo-sanitize');
+const express = require("express");
+const helmet = require("helmet");
+const cors = require("cors");
+const morgan = require("morgan");
+const mongoSanitize = require("express-mongo-sanitize");
 
-const rateLimit = require('./middlewares/rateLimiter');
-const botBlocker = require('./middlewares/botBlocker');
-const ipFirewall = require('./middlewares/ipFirewall');
+// Custom middlewares
+const rateLimit = require("./middlewares/rateLimiter");
+const botBlocker = require("./middlewares/botBlocker");
+const ipFirewall = require("./middlewares/ipFirewall");
 
-const { connectDB } = require('./config/db');
-const { cloudinaryConfig } = require('./config/cloudinary');
-const corsOptions = require('./config/corsOptions');
-const errorHandler = require('./middlewares/errorHandler');
+const { connectDB } = require("./config/db");
+const { cloudinaryConfig } = require("./config/cloudinary");
+const corsOptions = require("./config/corsOptions");
+const errorHandler = require("./middlewares/errorHandler");
 
 const app = express();
 
-// --------------------------------------------------
-// REQUIRED FIX FOR RENDER (BEFORE EVERYTHING)
-// --------------------------------------------------
-app.set("trust proxy", 1); 
-// --------------------------------------------------
+/* ------------------------------------------------------------------
+   🔥 REQUIRED FOR RENDER (SAFE + COMPATIBLE WITH RATE LIMITING)
+------------------------------------------------------------------ */
+app.set("trust proxy", "loopback");
+// "loopback" = safest option, prevents rate limiting exploit.
 
-// ======================
-// CONNECT DATABASE
-// ======================
+/* ------------------------------------------------------------------
+   🔌 DATABASE CONNECTION
+------------------------------------------------------------------ */
 (async () => {
   try {
     await connectDB();
@@ -37,9 +38,9 @@ app.set("trust proxy", 1);
   }
 })();
 
-// ======================
-// CLOUDINARY
-// ======================
+/* ------------------------------------------------------------------
+   ☁️ CLOUDINARY
+------------------------------------------------------------------ */
 try {
   cloudinaryConfig();
   console.log("✅ Cloudinary Ready");
@@ -47,49 +48,60 @@ try {
   console.error("❌ Cloudinary Error:", err.message);
 }
 
-// ======================
-// SECURITY MIDDLEWARES
-// ======================
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
+/* ------------------------------------------------------------------
+   🛡️ SECURITY + CORE MIDDLEWARE (MUST LOAD BEFORE FIREWALLS)
+------------------------------------------------------------------ */
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
 app.use(cors(corsOptions));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(mongoSanitize());
 app.use(morgan("combined"));
 
-// Custom Firewalls
-app.use(ipFirewall);   // IP blocklist + suspicious IP tracking
-app.use(botBlocker);   // Bot, scraper, spam, and payload filter
+/* ------------------------------------------------------------------
+   🔐 MINI FIREWALL LAYER (SAFE ORDER)
+------------------------------------------------------------------ */
+app.use("/api/status", (req, res, next) => next()); // Never block health checks
 
-// Rate limit (after bot detection)
-app.use(rateLimit);
+app.use(ipFirewall); // Block dangerous IPs
+app.use(botBlocker); // Block scrapers + suspicious UAs
 
-// ======================
-// ROUTES
-// ======================
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/users', require('./routes/usersRoutes'));
-app.use('/api/upload', require('./routes/uploadRoutes'));
-app.use('/api/account', require('./routes/accountRoutes'));
-app.use('/api/bets', require('./routes/betsRoutes'));
-app.use('/api/events', require('./routes/eventRoutes'));
-app.use('/api/support', require('./routes/supportRoutes'));
-app.use('/api/notifications', require('./routes/notificationRoutes'));
-app.use('/api/winners', require('./routes/winnerRoutes'));
-app.use('/api/admin', require('./routes/adminRoutes'));
-app.use('/api/status', require('./routes/healthRoutes'));
+app.use(rateLimit); // Apply rate limiting last
 
-// ROOT CHECK
-app.get('/', (req, res) => {
+/* ------------------------------------------------------------------
+   🧭 ROUTES
+------------------------------------------------------------------ */
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/users", require("./routes/usersRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
+app.use("/api/account", require("./routes/accountRoutes"));
+app.use("/api/bets", require("./routes/betsRoutes"));
+app.use("/api/events", require("./routes/eventRoutes"));
+app.use("/api/support", require("./routes/supportRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/winners", require("./routes/winnerRoutes"));
+app.use("/api/admin", require("./routes/adminRoutes"));
+app.use("/api/status", require("./routes/healthRoutes"));
+
+/* ------------------------------------------------------------------
+   🏁 ROOT CHECK
+------------------------------------------------------------------ */
+app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "ClutchDen API running 🚀"
+    message: "ClutchDen API running 🚀",
   });
 });
 
-// 404
+/* ------------------------------------------------------------------
+   ❌ 404 HANDLER
+------------------------------------------------------------------ */
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -97,14 +109,18 @@ app.use((req, res) => {
   });
 });
 
-// GLOBAL ERROR HANDLER
+/* ------------------------------------------------------------------
+   🚨 GLOBAL ERROR HANDLER
+------------------------------------------------------------------ */
 app.use(errorHandler);
 
-// START SERVER
+/* ------------------------------------------------------------------
+   🚀 START SERVER
+------------------------------------------------------------------ */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-process.on("unhandledRejection", err => {
-  console.error("❌ Unhandled:", err.message);
+process.on("unhandledRejection", (err) => {
+  console.error("❌ Unhandled Rejection:", err.message);
   process.exit(1);
 });
