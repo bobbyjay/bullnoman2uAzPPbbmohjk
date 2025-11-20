@@ -1,6 +1,5 @@
 const userService = require('../services/userService');
 const response = require('../utils/responseHandler');
-const axios = require('axios');
 const { cloudinary } = require('../config/cloudinary');
 
 /**
@@ -15,7 +14,7 @@ exports.getProfile = async (req, res) => {
 
 /**
  * @route   GET /users/profile-pictures
- * @desc    Get only the authenticated user's profile picture stream URL
+ * @desc    Get ONLY the authenticated user's profile picture stream URL
  * @access  Private
  */
 exports.listProfilePictures = async (req, res) => {
@@ -25,12 +24,12 @@ exports.listProfilePictures = async (req, res) => {
       return response.error(res, 'Profile picture not found', 404);
     }
 
-    // Return only the authenticated user's stream URL
+    // 🔥 FIX: Provide correct streaming URL for frontend avatar
     const data = [
       {
         id: user._id,
         username: user.username,
-        streamUrl: `/api/users/${user._id}/profile-picture`,
+        streamUrl: `/api/users/${user._id}/profile-picture`, // frontend now receives correct link
       },
     ];
 
@@ -52,8 +51,8 @@ exports.leaderboard = async (req, res) => {
 
 /**
  * @route   GET /users/:id/profile-picture
- * @desc    Stream the user's profile image (binary)
- * @access  Public or Private based on your auth rules
+ * @desc    Stream user's profile picture
+ * @access  Public or Private depending on setup
  */
 exports.streamProfilePicture = async (req, res) => {
   try {
@@ -62,19 +61,24 @@ exports.streamProfilePicture = async (req, res) => {
       return response.error(res, 'Profile image not found', 404);
     }
 
-    // Generate a secure Cloudinary URL for streaming
+    // 🔥 FIX: Generate optimized Cloudinary URL
     const cloudinaryUrl = cloudinary.url(user.profilePictureId, {
       secure: true,
       format: 'jpg',
-      transformation: [{ quality: 'auto' }, { fetch_format: 'auto' }],
+      transformation: [
+        { quality: 'auto' },
+        { fetch_format: 'auto' }
+      ]
     });
 
-    // Stream the image through your API
-    const imgResponse = await axios.get(cloudinaryUrl, { responseType: 'stream' });
+    // 🔥 FIX: Disable caching so new image always loads
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
 
-    res.setHeader('Content-Type', imgResponse.headers['content-type']);
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    imgResponse.data.pipe(res);
+    // 🔥 FIX: Fastest, safest method -> redirect Cloudinary to browser
+    return res.redirect(cloudinaryUrl);
+
   } catch (err) {
     console.error('❌ Error streaming profile picture:', err.message);
     response.error(res, 'Error streaming profile image', 500);
