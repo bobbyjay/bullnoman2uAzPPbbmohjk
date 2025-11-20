@@ -1,6 +1,6 @@
 const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
-const Withdrawal = require('../models/Withdrawal');  // ✅ add withdraw model
+const Withdrawal = require('../models/Withdrawal'); 
 const response = require('../utils/responseHandler');
 
 /**
@@ -28,6 +28,7 @@ exports.requestDeposit = async (req, res) => {
       );
     }
 
+    // Create Transaction Record
     const tx = await Transaction.create({
       user: req.user._id,
       type: 'deposit',
@@ -61,7 +62,6 @@ exports.requestDeposit = async (req, res) => {
 
 /**
  * POST /account/withdraw
- * Creates a PENDING withdrawal transaction
  */
 exports.requestWithdraw = async (req, res) => {
   try {
@@ -73,7 +73,7 @@ exports.requestWithdraw = async (req, res) => {
     if (!walletType || !walletAddress)
       return response.error(res, 'Wallet type and address required', 400);
 
-    // Create Withdrawal record
+    // Create withdrawal entry
     const withdrawReq = await Withdrawal.create({
       user: req.user._id,
       amount,
@@ -82,7 +82,7 @@ exports.requestWithdraw = async (req, res) => {
       status: 'pending',
     });
 
-    // Create unified transaction for frontend
+    // Also create Transaction entry for frontend
     const tx = await Transaction.create({
       user: req.user._id,
       type: 'withdrawal',
@@ -95,7 +95,7 @@ exports.requestWithdraw = async (req, res) => {
       {
         message: 'Withdrawal request submitted and pending admin approval.',
         withdrawal: withdrawReq,
-        transaction: tx
+        transaction: tx,
       },
       'Withdrawal request created',
       201
@@ -108,14 +108,25 @@ exports.requestWithdraw = async (req, res) => {
 
 /**
  * GET /account/transactions
- * Returns ALL user transactions (deposit + withdrawal)
+ * Returns clean formatted transactions
  */
 exports.listTransactions = async (req, res) => {
   try {
     const tx = await Transaction.find({ user: req.user._id })
       .sort({ createdAt: -1 });
 
-    response.success(res, tx);
+    const formatted = tx.map(t => ({
+      id: t._id,
+      type: t.type,
+      label: t.type === 'deposit' ? 'Deposit' : 'Withdrawal',
+      direction: t.type === 'deposit' ? 'credit' : 'debit',
+      amount: t.amount,
+      status: t.status,
+      date: t.createdAt,
+      dateFormatted: t.createdAt.toLocaleString(),
+    }));
+
+    response.success(res, formatted);
   } catch (err) {
     console.error('❌ Error fetching transactions:', err);
     response.error(res, 'Unable to retrieve transactions', 500);
@@ -123,8 +134,7 @@ exports.listTransactions = async (req, res) => {
 };
 
 /**
- * GET /account/pending
- * Admin review
+ * GET /account/pending (Admin)
  */
 exports.listPendingRequests = async (req, res) => {
   try {
@@ -143,7 +153,6 @@ exports.listPendingRequests = async (req, res) => {
 
 /**
  * POST /account/approve/:id
- * Admin approves deposit OR withdrawal
  */
 exports.approveTransaction = async (req, res) => {
   try {
@@ -162,7 +171,7 @@ exports.approveTransaction = async (req, res) => {
 
       tx.user.balance -= tx.amount;
 
-      // Also update Withdrawal model
+      // Update Withdrawal record
       await Withdrawal.findOneAndUpdate(
         { user: tx.user._id, amount: tx.amount, status: 'pending' },
         { status: 'approved' }
@@ -195,7 +204,7 @@ exports.rejectTransaction = async (req, res) => {
     tx.status = 'rejected';
     await tx.save();
 
-    // Also reject withdrawal if exists
+    // Reject withdrawal if needed
     if (tx.type === 'withdrawal') {
       await Withdrawal.findOneAndUpdate(
         { user: tx.user, amount: tx.amount, status: 'pending' },
