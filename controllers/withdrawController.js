@@ -53,3 +53,25 @@ exports.requestWithdraw = async (req, res) => {
     return response.error(res, 'Unable to process withdrawal', 500);
   }
 };
+
+/**
+ * @route   GET /account/withdraw-history
+ * @desc    Get all withdrawals for the logged-in user
+ * @access  Private
+ */
+exports.getUserWithdrawals = async (req, res) => {
+  try {
+    logger.info(`📄 Fetching withdrawal history for user: ${req.user.email}`);
+
+    const withdrawals = await Withdrawal.find({ user: req.user._id })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      data: withdrawals,
+    });
+  } catch (err) {
+    logger.error('❌ Error fetching withdrawal history:', err);
+    return response.error(res, 'Unable to retrieve withdrawal history', 500);
+  }
+};
