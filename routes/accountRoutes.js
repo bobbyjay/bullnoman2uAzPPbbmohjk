@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middlewares/authMiddleware');
 const accountCtrl = require('../controllers/accountController');
-const withdrawCtrl = require('../controllers/withdrawController'); // ✅ new import
+const withdrawCtrl = require('../controllers/withdrawController'); // ✅ already imported
 
 // ✅ USER ROUTES
 
@@ -25,7 +25,7 @@ router.post('/deposit', auth, accountCtrl.requestDeposit);
  * @desc    Create a pending withdrawal request (requires admin approval)
  * @access  Private
  */
-router.post('/withdraw', auth, withdrawCtrl.requestWithdraw); // ✅ now handled by withdrawController.js
+router.post('/withdraw', auth, withdrawCtrl.requestWithdraw);
 
 /**
  * @route   GET /account/transactions
@@ -33,6 +33,13 @@ router.post('/withdraw', auth, withdrawCtrl.requestWithdraw); // ✅ now handled
  * @access  Private
  */
 router.get('/transactions', auth, accountCtrl.listTransactions);
+
+/**
+ * @route   GET /account/withdraw-history
+ * @desc    List all user's withdrawals (pending + approved)
+ * @access  Private
+ */
+router.get('/withdraw-history', auth, withdrawCtrl.getUserWithdrawals);  // ✅ NEW ROUTE ADDED
 
 // ✅ ADMIN ROUTES
 
