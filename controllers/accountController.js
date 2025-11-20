@@ -1,6 +1,6 @@
 const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
-const Withdrawal = require('../models/Withdrawal'); 
+const Withdrawal = require('../models/Withdrawal');
 const response = require('../utils/responseHandler');
 
 /**
@@ -28,7 +28,6 @@ exports.requestDeposit = async (req, res) => {
       );
     }
 
-    // Create Transaction Record
     const tx = await Transaction.create({
       user: req.user._id,
       type: 'deposit',
@@ -73,7 +72,7 @@ exports.requestWithdraw = async (req, res) => {
     if (!walletType || !walletAddress)
       return response.error(res, 'Wallet type and address required', 400);
 
-    // Create withdrawal entry
+    // Create Withdrawal record
     const withdrawReq = await Withdrawal.create({
       user: req.user._id,
       amount,
@@ -82,7 +81,7 @@ exports.requestWithdraw = async (req, res) => {
       status: 'pending',
     });
 
-    // Also create Transaction entry for frontend
+    // Create unified transaction for frontend
     const tx = await Transaction.create({
       user: req.user._id,
       type: 'withdrawal',
@@ -108,7 +107,7 @@ exports.requestWithdraw = async (req, res) => {
 
 /**
  * GET /account/transactions
- * Returns clean formatted transactions
+ * FORMAT transactions for the frontend
  */
 exports.listTransactions = async (req, res) => {
   try {
@@ -118,12 +117,23 @@ exports.listTransactions = async (req, res) => {
     const formatted = tx.map(t => ({
       id: t._id,
       type: t.type,
-      label: t.type === 'deposit' ? 'Deposit' : 'Withdrawal',
-      direction: t.type === 'deposit' ? 'credit' : 'debit',
       amount: t.amount,
       status: t.status,
       date: t.createdAt,
-      dateFormatted: t.createdAt.toLocaleString(),
+      label:
+        t.type === 'deposit'
+          ? 'Deposit Request'
+          : 'Withdrawal Request',
+      icon:
+        t.type === 'deposit'
+          ? 'arrow-down-circle'
+          : 'arrow-up-circle',
+      color:
+        t.status === 'approved'
+          ? 'green'
+          : t.status === 'rejected'
+            ? 'red'
+            : 'orange'
     }));
 
     response.success(res, formatted);
@@ -134,7 +144,7 @@ exports.listTransactions = async (req, res) => {
 };
 
 /**
- * GET /account/pending (Admin)
+ * GET /account/pending
  */
 exports.listPendingRequests = async (req, res) => {
   try {
@@ -171,7 +181,6 @@ exports.approveTransaction = async (req, res) => {
 
       tx.user.balance -= tx.amount;
 
-      // Update Withdrawal record
       await Withdrawal.findOneAndUpdate(
         { user: tx.user._id, amount: tx.amount, status: 'pending' },
         { status: 'approved' }
@@ -204,7 +213,6 @@ exports.rejectTransaction = async (req, res) => {
     tx.status = 'rejected';
     await tx.save();
 
-    // Reject withdrawal if needed
     if (tx.type === 'withdrawal') {
       await Withdrawal.findOneAndUpdate(
         { user: tx.user, amount: tx.amount, status: 'pending' },
