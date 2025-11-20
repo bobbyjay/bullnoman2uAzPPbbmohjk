@@ -51,7 +51,7 @@ exports.requestDeposit = async (req, res) => {
         adminDetails,
         transaction: tx
       },
-      'Deposit request submitted for admin approval',
+      'Deposit request submitted for approval',
       201
     );
   } catch (err) {
@@ -61,7 +61,7 @@ exports.requestDeposit = async (req, res) => {
 };
 
 /* ========================================================
-   CREATE WITHDRAW REQUEST
+   CREATE WITHDRAW REQUEST (FULL FIX)
 ======================================================== */
 exports.requestWithdraw = async (req, res) => {
   try {
@@ -82,7 +82,7 @@ exports.requestWithdraw = async (req, res) => {
       status: 'pending'
     });
 
-    // Create unified Transaction entry
+    // Create Transaction entry (IMPORTANT)
     const tx = await Transaction.create({
       user: req.user._id,
       type: 'withdrawal',
@@ -116,13 +116,12 @@ exports.listTransactions = async (req, res) => {
     const list = await Transaction.find({ user: req.user._id })
       .sort({ createdAt: -1 });
 
-    // --- Clean formatted version for UI ---
     const formatted = list.map(tx => ({
       id: tx._id,
-      type: tx.displayType,           // Deposit / Withdrawal
+      type: tx.type === 'deposit' ? 'Deposit' : 'Withdrawal',
       amount: tx.amount,
       status: tx.status,
-      date: tx.formattedDate,         // MM/DD/YYYY
+      date: tx.createdAt.toLocaleDateString('en-US'),
       walletType: tx.walletType || null,
       walletAddress: tx.walletAddress || null
     }));
@@ -173,7 +172,6 @@ exports.approveTransaction = async (req, res) => {
 
       tx.user.balance -= tx.amount;
 
-      // Update withdrawal model
       await Withdrawal.findOneAndUpdate(
         { user: tx.user._id, amount: tx.amount, status: 'pending' },
         { status: 'approved' }
