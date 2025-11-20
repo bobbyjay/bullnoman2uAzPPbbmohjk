@@ -17,7 +17,7 @@ const transactionSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: true,
-      min: [1, 'Amount must be positive'],
+      min: [0, 'Amount must be positive'],
     },
 
     status: {
@@ -26,32 +26,29 @@ const transactionSchema = new mongoose.Schema(
       default: 'pending',
     },
 
-    note: {
-      type: String,
-      trim: true,
-    },
-
-    // ✅ Add fields used ONLY when type = withdrawal
+    // 🔥 NEW FIELDS FOR WITHDRAW TRANSACTIONS  
     walletType: {
       type: String,
+      enum: ['Trust Wallet', 'PayPal', 'Coinbase', 'Binance', 'Apple Pay', null],
       default: null,
     },
 
     walletAddress: {
       type: String,
       default: null,
+    },
+
+    note: {
+      type: String,
+      trim: true,
     }
   },
   {
-    timestamps: true, // createdAt + updatedAt
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    timestamps: true,
   }
 );
 
-/* ----------------------------------------------------------
-   🔹 Automatically set "completed" when approved
----------------------------------------------------------- */
+// Convert "approved" → "completed"
 transactionSchema.pre('save', function (next) {
   if (this.isModified('status') && this.status === 'approved') {
     this.status = 'completed';
@@ -59,22 +56,13 @@ transactionSchema.pre('save', function (next) {
   next();
 });
 
-/* ----------------------------------------------------------
-   🔹 Virtual: Human readable type for frontend
----------------------------------------------------------- */
-transactionSchema.virtual('displayType').get(function () {
-  if (this.type === 'deposit') return 'Deposit';
-  if (this.type === 'withdrawal') return 'Withdrawal';
-  return this.type;
+// 🔥 Format fields automatically
+transactionSchema.virtual('formattedDate').get(function () {
+  return this.createdAt.toLocaleDateString();
 });
 
-/* ----------------------------------------------------------
-   🔹 Virtual: Frontend-friendly date (MM/DD/YYYY)
----------------------------------------------------------- */
-transactionSchema.virtual('formattedDate').get(function () {
-  return this.createdAt
-    ? this.createdAt.toLocaleDateString('en-US')
-    : '';
+transactionSchema.virtual('displayType').get(function () {
+  return this.type === 'withdrawal' ? 'Withdrawal' : 'Deposit';
 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
