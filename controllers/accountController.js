@@ -3,16 +3,16 @@ const Transaction = require('../models/Transaction');
 const Withdrawal = require('../models/Withdrawal');
 const response = require('../utils/responseHandler');
 
-/**
- * GET /account/balance
- */
+/* ========================================================
+   GET BALANCE
+======================================================== */
 exports.getBalance = async (req, res) => {
   response.success(res, { balance: req.user.balance });
 };
 
-/**
- * POST /account/deposit
- */
+/* ========================================================
+   CREATE DEPOSIT REQUEST
+======================================================== */
 exports.requestDeposit = async (req, res) => {
   try {
     const { amount } = req.body;
@@ -28,11 +28,12 @@ exports.requestDeposit = async (req, res) => {
       );
     }
 
+    // Create transaction
     const tx = await Transaction.create({
       user: req.user._id,
       type: 'deposit',
       amount: num,
-      status: 'pending',
+      status: 'pending'
     });
 
     const adminDetails = {
@@ -40,7 +41,7 @@ exports.requestDeposit = async (req, res) => {
       accountName: adminAccount.accountName || 'N/A',
       accountNumber: adminAccount.accountNumber || 'N/A',
       walletAddress: adminAccount.walletAddress || null,
-      instructions: 'Please make payment to the above details and await confirmation.',
+      instructions: 'Please make payment to the above details and await confirmation.'
     };
 
     response.success(
@@ -48,7 +49,7 @@ exports.requestDeposit = async (req, res) => {
       {
         message: 'Deposit request submitted for admin approval.',
         adminDetails,
-        transaction: tx,
+        transaction: tx
       },
       'Deposit request submitted for admin approval',
       201
@@ -59,9 +60,9 @@ exports.requestDeposit = async (req, res) => {
   }
 };
 
-/**
- * POST /account/withdraw
- */
+/* ========================================================
+   CREATE WITHDRAW REQUEST
+======================================================== */
 exports.requestWithdraw = async (req, res) => {
   try {
     const { amount, walletType, walletAddress } = req.body;
@@ -72,21 +73,23 @@ exports.requestWithdraw = async (req, res) => {
     if (!walletType || !walletAddress)
       return response.error(res, 'Wallet type and address required', 400);
 
-    // Create Withdrawal record
+    // Create Withdrawal entry
     const withdrawReq = await Withdrawal.create({
       user: req.user._id,
       amount,
       walletType,
       walletAddress,
-      status: 'pending',
+      status: 'pending'
     });
 
-    // Create unified transaction for frontend
+    // Create unified Transaction entry
     const tx = await Transaction.create({
       user: req.user._id,
       type: 'withdrawal',
       amount,
       status: 'pending',
+      walletType,
+      walletAddress
     });
 
     response.success(
@@ -94,7 +97,7 @@ exports.requestWithdraw = async (req, res) => {
       {
         message: 'Withdrawal request submitted and pending admin approval.',
         withdrawal: withdrawReq,
-        transaction: tx,
+        transaction: tx
       },
       'Withdrawal request created',
       201
@@ -105,35 +108,23 @@ exports.requestWithdraw = async (req, res) => {
   }
 };
 
-/**
- * GET /account/transactions
- * FORMAT transactions for the frontend
- */
+/* ========================================================
+   GET ALL TRANSACTIONS (FORMATTED FOR FRONTEND)
+======================================================== */
 exports.listTransactions = async (req, res) => {
   try {
-    const tx = await Transaction.find({ user: req.user._id })
+    const list = await Transaction.find({ user: req.user._id })
       .sort({ createdAt: -1 });
 
-    const formatted = tx.map(t => ({
-      id: t._id,
-      type: t.type,
-      amount: t.amount,
-      status: t.status,
-      date: t.createdAt,
-      label:
-        t.type === 'deposit'
-          ? 'Deposit Request'
-          : 'Withdrawal Request',
-      icon:
-        t.type === 'deposit'
-          ? 'arrow-down-circle'
-          : 'arrow-up-circle',
-      color:
-        t.status === 'approved'
-          ? 'green'
-          : t.status === 'rejected'
-            ? 'red'
-            : 'orange'
+    // --- Clean formatted version for UI ---
+    const formatted = list.map(tx => ({
+      id: tx._id,
+      type: tx.displayType,           // Deposit / Withdrawal
+      amount: tx.amount,
+      status: tx.status,
+      date: tx.formattedDate,         // MM/DD/YYYY
+      walletType: tx.walletType || null,
+      walletAddress: tx.walletAddress || null
     }));
 
     response.success(res, formatted);
@@ -143,9 +134,9 @@ exports.listTransactions = async (req, res) => {
   }
 };
 
-/**
- * GET /account/pending
- */
+/* ========================================================
+   ADMIN — LIST PENDING REQUESTS
+======================================================== */
 exports.listPendingRequests = async (req, res) => {
   try {
     if (!req.user.isAdmin) return response.error(res, 'Unauthorized', 403);
@@ -161,9 +152,9 @@ exports.listPendingRequests = async (req, res) => {
   }
 };
 
-/**
- * POST /account/approve/:id
- */
+/* ========================================================
+   ADMIN — APPROVE TRANSACTION
+======================================================== */
 exports.approveTransaction = async (req, res) => {
   try {
     if (!req.user.isAdmin) return response.error(res, 'Unauthorized', 403);
@@ -175,12 +166,14 @@ exports.approveTransaction = async (req, res) => {
 
     if (tx.type === 'deposit') {
       tx.user.balance += tx.amount;
-    } else if (tx.type === 'withdrawal') {
+    } 
+    else if (tx.type === 'withdrawal') {
       if (tx.user.balance < tx.amount)
         return response.error(res, 'User has insufficient balance', 400);
 
       tx.user.balance -= tx.amount;
 
+      // Update withdrawal model
       await Withdrawal.findOneAndUpdate(
         { user: tx.user._id, amount: tx.amount, status: 'pending' },
         { status: 'approved' }
@@ -198,9 +191,9 @@ exports.approveTransaction = async (req, res) => {
   }
 };
 
-/**
- * POST /account/reject/:id
- */
+/* ========================================================
+   ADMIN — REJECT TRANSACTION
+======================================================== */
 exports.rejectTransaction = async (req, res) => {
   try {
     if (!req.user.isAdmin) return response.error(res, 'Unauthorized', 403);
