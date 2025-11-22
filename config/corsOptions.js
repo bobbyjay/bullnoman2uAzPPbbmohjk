@@ -3,8 +3,6 @@
 const allowedOrigins = [
   "https://clutchden.com",
   "https://www.clutchden.com",
-"https://clutch-l7syd5at4-cornellis-projects.vercel.app",
-  "https://clutchden-on.netlify.app",
   "https://clutchden.onrender.com",
   "http://localhost:3000",
   "http://localhost:5173"
