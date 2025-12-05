@@ -86,3 +86,44 @@ exports.userBets = async (req, res) => {
     response.error(res, 'Unable to fetch your bets', 500);
   }
 };
+
+/**
+ * @route   GET /bets/:id/receipt
+ * @desc    Get detailed receipt for a specific bet
+ */
+exports.betReceipt = async (req, res) => {
+  try {
+    const betId = req.params.id;
+
+    const bet = await Bet.findById(betId)
+      .populate('user', 'username email')
+      .populate('event', 'title startTime status')
+      .lean();
+
+    if (!bet) return response.error(res, 'Bet not found', 404);
+
+    // Security: Ensure only owner can access
+    if (String(bet.user._id) !== String(req.user._id)) {
+      return response.error(res, 'Unauthorized to view this receipt', 403);
+    }
+
+    // Build receipt data
+    const receipt = {
+      receiptId: bet._id,
+      user: bet.user.username,
+      event: bet.event?.title || 'Event removed',
+      market: bet.market?.name,
+      odds: bet.market?.odds,
+      stake: bet.stake,
+      potentialWin: bet.potentialWin,
+      status: bet.status,
+      placedAt: bet.createdAt,
+      updatedAt: bet.updatedAt,
+    };
+
+    return response.success(res, receipt, 'Bet receipt fetched');
+  } catch (err) {
+    console.error('❌ Error fetching receipt:', err);
+    response.error(res, 'Unable to get bet receipt', 500);
+  }
+};
