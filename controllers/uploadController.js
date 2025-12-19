@@ -13,17 +13,14 @@ exports.uploadProfile = async (req, res) => {
   if (!valid) return response.error(res, message, 400);
 
   try {
-    // upload buffer to Cloudinary (server side)
     const result = await uploadBufferToCloudinary(
       file.buffer,
       `users/${req.user._id}`
     );
 
-    // store only public_id
     req.user.profilePictureId = result.public_id;
     await req.user.save();
 
-    // return only id (no Cloudinary URLs)
     return response.success(
       res,
       { id: result.public_id },
@@ -38,20 +35,19 @@ exports.uploadProfile = async (req, res) => {
 
 /**
  * Streams image binary through server.
- * Client provides ?id=public_id
- * Cloudinary URLs never reach the client.
+ * Client ONLY talks to this API.
+ * No Cloudinary referrer or headers reach the client.
  */
 exports.streamProfile = async (req, res) => {
   const { id } = req.query;
   if (!id) return response.error(res, 'Missing id', 400);
 
   try {
-    // OPTIONAL but recommended: ownership check
     if (req.user.profilePictureId !== id) {
       return response.error(res, 'Unauthorized', 403);
     }
 
-    // Generate signed Cloudinary URL (SERVER ONLY)
+    // Signed Cloudinary URL (SERVER-ONLY)
     const signedUrl = cloudinary.url(id, {
       secure: true,
       sign_url: true,
@@ -62,15 +58,26 @@ exports.streamProfile = async (req, res) => {
       method: 'GET',
       url: signedUrl,
       responseType: 'stream',
-      maxRedirects: 0, // ⛔ critical: prevents CDN redirect
-      validateStatus: status => status === 200
+      maxRedirects: 0,
+      validateStatus: s => s === 200,
+      headers: {
+        // ⛔ do not forward client referrer upstream
+        Referer: '',
+        Origin: ''
+      }
     });
 
+    // ⛔ Strip ALL upstream headers
+    res.removeHeader('Referer');
+    res.removeHeader('Origin');
+
+    // ✅ Explicit safe headers only
     res.setHeader(
       'Content-Type',
       streamResp.headers['content-type'] || 'application/octet-stream'
     );
     res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('Referrer-Policy', 'no-referrer');
 
     streamResp.data.pipe(res);
   } catch (err) {
