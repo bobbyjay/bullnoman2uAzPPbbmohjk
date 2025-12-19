@@ -63,13 +63,26 @@ exports.top = async (req, res) => {
  */
 exports.addWinner = async (req, res) => {
   try {
-    // 🔒 Admin check
     if (!req.user || !req.user.isAdmin) {
       return response.error(res, 'Access denied: Admins only', 403);
     }
 
-    const { username, userId, amount, prize, rank } = req.body;
+    // ✅ Normalize form-data values
+    const username =
+      typeof req.body.username === 'string' && req.body.username.trim()
+        ? req.body.username.trim()
+        : null;
 
+    const userId =
+      typeof req.body.userId === 'string' && req.body.userId.trim()
+        ? req.body.userId.trim()
+        : null;
+
+    const amount = Number(req.body.amount) || 0;
+    const prize = req.body.prize || 'No prize specified';
+    const rank = req.body.rank ? Number(req.body.rank) : null;
+
+    // ✅ FIXED validation
     if (!username && !userId) {
       return response.error(
         res,
@@ -80,43 +93,32 @@ exports.addWinner = async (req, res) => {
 
     let imageUrl = null;
 
-    // 📸 Admin uploaded image from Postman
     if (req.file) {
-      try {
-        const upload = await cloudinary.uploader.upload(req.file.path, {
-          folder: 'winners',
-          resource_type: 'image',
-          quality: 'auto',
-          fetch_format: 'auto',
-        });
+      const upload = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'winners',
+        resource_type: 'image',
+        quality: 'auto',
+        fetch_format: 'auto',
+      });
 
-        imageUrl = upload.secure_url;
-      } catch (uploadErr) {
-        logger.error('❌ Cloudinary upload failed:', uploadErr);
-        return response.error(res, 'Image upload failed', 500);
-      }
+      imageUrl = upload.secure_url;
     }
 
     const winner = new Winner({
-      user: userId || null,
-      username: username || null,
-      amount: Number(amount) || 0,
-      prize: prize || 'No prize specified',
-      rank: rank || null,
-      imageUrl, // ✅ saved
+      user: userId,
+      username,
+      amount,
+      prize,
+      rank,
+      imageUrl,
     });
 
     await winner.save();
 
-    logger.info(
-      `🏆 Admin ${req.user.email} added winner: ${username || userId}`
-    );
-
     response.success(res, winner, 'Winner added successfully', 201);
   } catch (err) {
-    logger.error('❌ Error adding winner:', err);
+    console.error('❌ Error adding winner:', err);
     response.error(res, 'Unable to add winner', 500);
   }
 };
-
 
