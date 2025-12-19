@@ -58,8 +58,8 @@ exports.top = async (req, res) => {
 
 /**
  * @route   POST /winners
- * @desc    Add a new winner (Admin only)
  * @access  Private (Admin)
+ * @desc    Admin adds winner WITH image upload
  */
 exports.addWinner = async (req, res) => {
   try {
@@ -68,14 +68,7 @@ exports.addWinner = async (req, res) => {
       return response.error(res, 'Access denied: Admins only', 403);
     }
 
-    const {
-      username,
-      userId,
-      amount,
-      prize,
-      rank,
-      imageUrl // ✅ NEW
-    } = req.body;
+    const { username, userId, amount, prize, rank } = req.body;
 
     if (!username && !userId) {
       return response.error(
@@ -85,13 +78,23 @@ exports.addWinner = async (req, res) => {
       );
     }
 
-    // 🔐 Optional sanity check (prevents Cloudinary direct links)
-    if (imageUrl && imageUrl.includes('res.cloudinary.com')) {
-      return response.error(
-        res,
-        'Direct Cloudinary URLs are not allowed',
-        400
-      );
+    let imageUrl = null;
+
+    // 📸 Admin uploaded image from Postman
+    if (req.file) {
+      try {
+        const upload = await cloudinary.uploader.upload(req.file.path, {
+          folder: 'winners',
+          resource_type: 'image',
+          quality: 'auto',
+          fetch_format: 'auto',
+        });
+
+        imageUrl = upload.secure_url;
+      } catch (uploadErr) {
+        logger.error('❌ Cloudinary upload failed:', uploadErr);
+        return response.error(res, 'Image upload failed', 500);
+      }
     }
 
     const winner = new Winner({
@@ -100,7 +103,7 @@ exports.addWinner = async (req, res) => {
       amount: Number(amount) || 0,
       prize: prize || 'No prize specified',
       rank: rank || null,
-      imageUrl: imageUrl || null, // ✅ STORED DIRECTLY
+      imageUrl, // ✅ saved
     });
 
     await winner.save();
@@ -115,4 +118,5 @@ exports.addWinner = async (req, res) => {
     response.error(res, 'Unable to add winner', 500);
   }
 };
+
 
