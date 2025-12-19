@@ -79,17 +79,17 @@ exports.leaderboard = async (req, res) => {
 
 /**
  * @route   GET /users/:id/profile-picture
- * @desc    Stream user's profile picture via Cloudinary redirect
+ * @desc    Stream user's profile picture via backend proxy (NO redirect)
  */
 exports.streamProfilePicture = async (req, res) => {
   try {
     const user = await userService.getById(req.params.id);
 
     if (!user || !user.profilePictureId) {
-      return response.error(res, 'Profile image not found', 404);
+      return response.error(res, "Profile image not found", 404);
     }
 
-    // Build Cloudinary transformed URL
+    // Build Cloudinary URL (SERVER ONLY)
     const cloudinaryUrl = cloudinary.url(user.profilePictureId, {
       secure: true,
       format: "jpg",
@@ -99,15 +99,26 @@ exports.streamProfilePicture = async (req, res) => {
       ]
     });
 
-    // Disable caching ensures updated profile images load immediately
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
+    // 🔒 Fetch image SERVER → Cloudinary
+    const imgResponse = await axios.get(cloudinaryUrl, {
+      responseType: "stream",
+      maxRedirects: 0,     // 🚨 prevent leaks
+      headers: {
+        Cookie: "",        // 🚫 no cookies
+        Referer: "",       // 🚫 no referrer
+        "User-Agent": "ClutchDen-Image-Proxy"
+      }
+    });
 
-    return res.redirect(cloudinaryUrl);
+    // ✅ Forward safe headers only
+    res.setHeader("Content-Type", imgResponse.headers["content-type"]);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+
+    // ✅ Stream raw bytes to browser
+    imgResponse.data.pipe(res);
 
   } catch (err) {
-    console.error('❌ Error streaming profile picture:', err.message);
-    response.error(res, 'Error streaming profile image', 500);
+    console.error("❌ Error streaming profile picture:", err.message);
+    response.error(res, "Error streaming profile image", 500);
   }
 };
