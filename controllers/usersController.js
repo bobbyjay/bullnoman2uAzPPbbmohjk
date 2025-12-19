@@ -1,6 +1,7 @@
 const userService = require('../services/userService');
 const response = require('../utils/responseHandler');
 const { cloudinary } = require('../config/cloudinary');
+const axios = require("axios");
 
 /**
  * ----------------------------------------------------
