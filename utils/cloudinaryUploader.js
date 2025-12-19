@@ -7,12 +7,18 @@ const { cloudinary } = require('../config/cloudinary');
 async function uploadBufferToCloudinary(buffer, folder = 'profiles') {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'image', overwrite: true },
+      {
+        folder,
+        resource_type: 'image',
+        overwrite: true,
+        type: 'private' // 🔒 CRITICAL: prevents public CDN access
+      },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
       }
     );
+
     stream.end(buffer);
   });
 }
@@ -21,7 +27,13 @@ async function uploadBufferToCloudinary(buffer, folder = 'profiles') {
  * Destroy a public_id (admin only)
  */
 async function destroyPublicId(publicId) {
-  return cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+  return cloudinary.uploader.destroy(publicId, {
+    resource_type: 'image',
+    type: 'private'
+  });
 }
 
-module.exports = { uploadBufferToCloudinary, destroyPublicId };
+module.exports = {
+  uploadBufferToCloudinary,
+  destroyPublicId
+};
