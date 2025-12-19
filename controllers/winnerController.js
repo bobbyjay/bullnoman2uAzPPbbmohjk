@@ -63,48 +63,56 @@ exports.top = async (req, res) => {
  */
 exports.addWinner = async (req, res) => {
   try {
-    // 🔒 Check admin
+    // 🔒 Admin check
     if (!req.user || !req.user.isAdmin) {
       return response.error(res, 'Access denied: Admins only', 403);
     }
 
-    const { username, userId, amount, prize, rank } = req.body;
+    const {
+      username,
+      userId,
+      amount,
+      prize,
+      rank,
+      imageUrl // ✅ NEW
+    } = req.body;
 
     if (!username && !userId) {
-      return response.error(res, 'Winner must have either username or userId', 400);
+      return response.error(
+        res,
+        'Winner must have either username or userId',
+        400
+      );
     }
 
-    // Optional image upload (if admin uploads a picture)
-    let imageUrl = null;
-    if (req.file) {
-      try {
-        const upload = await cloudinary.uploader.upload(req.file.path, {
-          folder: 'winners',
-          resource_type: 'image',
-        });
-        imageUrl = upload.secure_url;
-      } catch (uploadErr) {
-        logger.error('❌ Cloudinary upload failed:', uploadErr);
-        return response.error(res, 'Image upload failed', 500);
-      }
+    // 🔐 Optional sanity check (prevents Cloudinary direct links)
+    if (imageUrl && imageUrl.includes('res.cloudinary.com')) {
+      return response.error(
+        res,
+        'Direct Cloudinary URLs are not allowed',
+        400
+      );
     }
 
-    // Create new winner document
     const winner = new Winner({
       user: userId || null,
       username: username || null,
-      amount: amount || 0,
+      amount: Number(amount) || 0,
       prize: prize || 'No prize specified',
       rank: rank || null,
-      imageUrl,
+      imageUrl: imageUrl || null, // ✅ STORED DIRECTLY
     });
 
     await winner.save();
 
-    logger.info(`🏆 Admin ${req.user.email} added winner: ${username || userId}`);
+    logger.info(
+      `🏆 Admin ${req.user.email} added winner: ${username || userId}`
+    );
+
     response.success(res, winner, 'Winner added successfully', 201);
   } catch (err) {
     logger.error('❌ Error adding winner:', err);
     response.error(res, 'Unable to add winner', 500);
   }
 };
+
