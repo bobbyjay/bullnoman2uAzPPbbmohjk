@@ -20,6 +20,12 @@ router.get('/recent', ctrl.recent);
 router.get('/top', ctrl.top);
 
 /**
+ * @route   GET /winners/:id/image
+ * @desc    To view winner
+ */
+router.get('/winners/:id/image', ctrl.streamWinnerImage);
+
+/**
  * @route   POST /winners
  * @desc    Add a new winner (Admin only)
  * @access  Private (Admin)
