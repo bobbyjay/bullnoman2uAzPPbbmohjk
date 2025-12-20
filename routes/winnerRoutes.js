@@ -23,7 +23,7 @@ router.get('/top', ctrl.top);
  * @route   GET /winners/:id/image
  * @desc    To view winner
  */
-router.get('/winners/:id/image', ctrl.streamWinnerImage);
+router.get('/:id/image', ctrl.streamWinnerImage);
 
 /**
  * @route   POST /winners
