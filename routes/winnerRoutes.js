@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/winnerController');
 const auth = require('../middlewares/authMiddleware');
+const { upload, handleUploadErrors } = require('../middleware/uploadMiddleware');
+
 
 /**
  * @route   GET /winners/recent
@@ -23,6 +25,13 @@ router.get('/top', ctrl.top);
  * @access  Private (Admin)
  * @body    { username, prize, imageUrl?, rank? }
  */
-router.post('/', auth, ctrl.addWinner);
+router.post(
+  '/',
+  auth,
+  upload('image'),        // ✅ CORRECT for your middleware
+  handleUploadErrors,    
+  ctrl.addWinner
+);
+
 
 module.exports = router;
