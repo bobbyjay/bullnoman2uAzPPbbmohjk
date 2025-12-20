@@ -13,22 +13,40 @@ exports.placeBet = async (req, res) => {
     const stakeNum = Number(stake);
 
     // Validate stake
-    if (!stakeNum || stakeNum <= 0)
+    if (!stakeNum || stakeNum <= 0) {
       return response.error(res, 'Invalid stake', 400);
+    }
 
     // Find event
     const event = await Event.findById(eventId);
-    if (!event) return response.error(res, 'Event not found', 404);
+    if (!event) {
+      return response.error(res, 'Event not found', 404);
+    }
+
+    const now = new Date();
+
+    // ⛔ BLOCK betting if event has ended
+    if (
+      event.status === 'finished' ||
+      event.status === 'cancelled' ||
+      (event.endAt && now > event.endAt)
+    ) {
+      return response.error(res, 'Event has ended', 400);
+    }
 
     // Find market inside event
     const market =
       event.markets.id(marketId) ||
       event.markets.find((m) => String(m._id) === String(marketId));
-    if (!market) return response.error(res, 'Market not found', 404);
+
+    if (!market) {
+      return response.error(res, 'Market not found', 404);
+    }
 
     // Check user balance
-    if (req.user.balance < stakeNum)
+    if (req.user.balance < stakeNum) {
       return response.error(res, 'Insufficient balance', 400);
+    }
 
     // Deduct stake and save user
     req.user.balance -= stakeNum;
@@ -41,7 +59,10 @@ exports.placeBet = async (req, res) => {
     const bet = await Bet.create({
       user: req.user._id,
       event: event._id,
-      market: { name: market.name, odds: market.odds },
+      market: {
+        name: market.name,
+        odds: market.odds,
+      },
       stake: stakeNum,
       potentialWin,
       status: 'pending',
@@ -63,6 +84,7 @@ exports.listBets = async (req, res) => {
     const bets = await Bet.find()
       .populate('user', 'username')
       .populate('event', 'title');
+
     response.success(res, bets);
   } catch (err) {
     console.error('❌ Error listing bets:', err);
@@ -77,7 +99,7 @@ exports.listBets = async (req, res) => {
 exports.userBets = async (req, res) => {
   try {
     const bets = await Bet.find({ user: req.user._id })
-      .populate('event', 'title status')
+      .populate('event', 'title status startAt endAt')
       .sort({ createdAt: -1 });
 
     response.success(res, bets);
@@ -97,10 +119,12 @@ exports.betReceipt = async (req, res) => {
 
     const bet = await Bet.findById(betId)
       .populate('user', 'username email')
-      .populate('event', 'title startTime status')
+      .populate('event', 'title startAt endAt status')
       .lean();
 
-    if (!bet) return response.error(res, 'Bet not found', 404);
+    if (!bet) {
+      return response.error(res, 'Bet not found', 404);
+    }
 
     // Security: Ensure only owner can access
     if (String(bet.user._id) !== String(req.user._id)) {
