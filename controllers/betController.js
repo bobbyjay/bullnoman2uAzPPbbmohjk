@@ -25,13 +25,30 @@ exports.placeBet = async (req, res) => {
 
     const now = new Date();
 
-    // ⛔ BLOCK betting if event has ended
+    // ⏳ EVENT NOT STARTED
+    if (
+      event.startAt &&
+      now < event.startAt &&
+      event.status === 'scheduled'
+    ) {
+      return response.error(
+        res,
+        `Event has not started yet. Starts at ${event.startAt.toISOString()}`,
+        400
+      );
+    }
+
+    // ⛔ EVENT ENDED
     if (
       event.status === 'finished' ||
       event.status === 'cancelled' ||
       (event.endAt && now > event.endAt)
     ) {
-      return response.error(res, 'Event has ended', 400);
+      const endedAt = event.endAt
+        ? `Event ended at ${event.endAt.toISOString()}`
+        : 'Event has ended';
+
+      return response.error(res, endedAt, 400);
     }
 
     // Find market inside event
@@ -77,13 +94,13 @@ exports.placeBet = async (req, res) => {
 
 /**
  * @route   GET /bets
- * @desc    List all bets (admin or general view)
+ * @desc    List all bets
  */
 exports.listBets = async (req, res) => {
   try {
     const bets = await Bet.find()
       .populate('user', 'username')
-      .populate('event', 'title');
+      .populate('event', 'title status startAt endAt');
 
     response.success(res, bets);
   } catch (err) {
@@ -131,11 +148,27 @@ exports.betReceipt = async (req, res) => {
       return response.error(res, 'Unauthorized to view this receipt', 403);
     }
 
+    // Determine event state message
+    let eventState = 'Live';
+
+    const now = new Date();
+    if (bet.event?.startAt && now < bet.event.startAt) {
+      eventState = `Not started (starts at ${bet.event.startAt.toISOString()})`;
+    } else if (
+      bet.event?.status === 'finished' ||
+      (bet.event?.endAt && now > bet.event.endAt)
+    ) {
+      eventState = bet.event.endAt
+        ? `Ended at ${bet.event.endAt.toISOString()}`
+        : 'Ended';
+    }
+
     // Build receipt data
     const receipt = {
       receiptId: bet._id,
       user: bet.user.username,
       event: bet.event?.title || 'Event removed',
+      eventStatus: eventState,
       market: bet.market?.name,
       odds: bet.market?.odds,
       stake: bet.stake,
