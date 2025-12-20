@@ -185,7 +185,7 @@ exports.betReceipt = async (req, res) => {
       stake: bet.stake,
       potentialWin: bet.potentialWin,
       status: bet.status,
-      placedAt: bet.createdAt,
+      placedAt: bet.placedAt,
       updatedAt: bet.updatedAt,
     };
 
