@@ -12,9 +12,20 @@ exports.placeBet = async (req, res) => {
     const { eventId, marketId, stake } = req.body;
     const stakeNum = Number(stake);
 
+  const MIN_STAKE = 200;
+    
     // Validate stake
     if (!stakeNum || stakeNum <= 0) {
       return response.error(res, 'Invalid stake', 400);
+    }
+
+    // ⛔ MINIMUM STAKE CHECK
+    if (stakeNum < MIN_STAKE) {
+      return response.error(
+        res,
+        'Stake amount does not meet the minimum requirement of $200.',
+        400
+      );
     }
 
     // Find event
