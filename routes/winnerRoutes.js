@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/winnerController');
 const auth = require('../middlewares/authMiddleware');
-const { upload, handleUploadErrors } = require('../middleware/uploadMiddleware');
+const { upload, handleUploadErrors } = require('../middlewares/uploadMiddleware');
 
 
 /**
