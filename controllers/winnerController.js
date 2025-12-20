@@ -23,6 +23,42 @@ exports.recent = async (req, res) => {
 };
 
 /**
+ * @route   GET /winners/top
+ * @desc    Get top winners by total amount
+ * @access  Public
+ */
+exports.top = async (req, res) => {
+  try {
+    const top = await Winner.aggregate([
+      { $group: { _id: '$user', total: { $sum: '$amount' } } },
+      { $sort: { total: -1 } },
+      { $limit: 20 },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          user: { _id: 1, username: '$user.username' },
+          total: 1,
+        },
+      },
+    ]);
+
+    response.success(res, top);
+  } catch (err) {
+    logger.error('❌ Error fetching top winners:', err);
+    response.error(res, 'Unable to fetch top winners', 500);
+  }
+};
+
+
+/**
  * @route   POST /winners
  * @desc    Add a new winner (Admin only)
  * @access  Private (Admin)
