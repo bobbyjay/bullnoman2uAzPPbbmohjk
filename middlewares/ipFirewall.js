@@ -13,6 +13,7 @@ const allowedIPs = [
 
   // 🔥 YOUR FRONTEND DOMAINS
   "clutchden.onrender.com",
+  "https://a-q7-m9x-l2-k8-zp-4-hn-e5-r6d-yb-3w-pi.vercel.app",
   "clutchden-frontend.onrender.com"
 ];
 
